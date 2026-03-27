@@ -22,8 +22,9 @@ BirdNET-Pi (existing)
   └── SQLite DB (~/.local/share/birdnet-pi/birdnet.db)
           │
           ▼
-  birdnet-signage server  (Python / Flask or FastAPI)
-  ├── Polls or watches SQLite for new detections
+  birdnet-signage server  (Python / Flask)
+  ├── Polls SQLite every N seconds for new detections
+  ├── Resolves species image URLs (Wikipedia or Flickr) with in-memory cache
   ├── GET /api/detections/recent  → JSON list of recent detections
   └── GET /api/stream             → SSE stream of new detections
           │
@@ -38,68 +39,46 @@ Server-Sent Events are one-directional (server → client), simpler to implement
 
 ---
 
-## Display Design
+## Repository Structure
 
-### Layout
-
-**Landscape (TV/monitor):**
-- Left panel (flex: 1): **Hero card** — full-bleed photo, bottom text overlay
-- Right panel (300px fixed): **Timeline strip** — scrollable history of detections
-
-**Portrait (tablet):**
-- Top (52vh): Hero card
-- Bottom (flex: 1): Timeline strip (2-column square card grid)
-
-### Hero Card
-- Photo fills the entire panel edge-to-edge with no padding, no title bar, no "Live" indicator
-- Bottom overlay: common name (large serif), scientific name (italic serif), detection count pill ("N× in 5 min"), audio playback button (shown only when audio URL is available)
-- Gradient overlay covers only the bottom ~22-30% of the photo to preserve as much of the image as possible while keeping text legible
-- Displays the **single top species** by detection count in the past 5 minutes
-- Hero updates immediately on each new detection (if the top species changes, the photo crossfades)
-- Future enhancement: incorporate a rarity weighting so uncommon species can surface over frequently-detected common ones
-
-### Timeline Strip
-- **Header**: single slim bar showing species count today + countdown ring (no title label)
-- **Cards**: full-width, true 1:1 square aspect ratio, zero border-radius (square corners), no gap between cards — they stack flush with only a time divider line between minute groups
-- **Batching**: one card per species per minute — the timeline updates every 60 seconds, inserting a new group at the top with one card for each species detected in that minute
-- **Count**: each card overlay shows detection count for that species within that minute (e.g., "3 detections")
-- **Time dividers**: sticky labels (e.g., "8:14 AM") with a hairline rule; remain visible while scrolling through that group
-- **Scrolling**: new batches slide in at the top; the user can scroll down to review history; the timeline does not auto-scroll or jump while the user is browsing
-- **Portrait grid**: 2-column square grid instead of single-column
-
-### Visual Style
-- **Theme**: Material Design-inspired, auto light/dark via `prefers-color-scheme`
-- **Colors**: forest green primary (`#2d6a20` light / `#88cc68` dark), neutral grey-green surfaces
-- **Typography**: Libre Baskerville (serif, display use — common name, scientific name); Nunito Sans (UI elements — labels, counts, metadata)
-- **Photo overlay gradient**: `rgba(0,0,0,0.82)` at 0% → transparent at 30% — keeps the bottom strip legible without obscuring the photo
-- **No rounded corners on photo cards** — square crops throughout
-- **Ripple press feedback** on timeline cards (`:active` flash)
-- **Hover state** on timeline cards: subtle scale on image + elevation lift
-
-### SSE Event Shape
-Each detection event emitted by the server should be a JSON object with these fields (matching BirdNET-Pi's SQLite schema plus derived fields):
-
-```json
-{
-  "id": "unique-id",
-  "com_name": "American Robin",
-  "sci_name": "Turdus migratorius",
-  "confidence": 0.94,
-  "time": "08:14:32",
-  "date": "2025-03-26",
-  "ts": 1711447472000,
-  "minuteKey": "08:14",
-  "timeLabel": "8:14 AM",
-  "image_url": "https://...",
-  "audio_url": "/audio/robin-20250326-081432.mp3"
-}
+```
+birdnet-signage/
+├── README.md
+├── client/
+│   └── index.html              # Complete display UI (Phase 1 done)
+└── server/
+    ├── server.py               # Flask app, SSE + REST endpoints (Phase 2)
+    ├── db_watcher.py           # SQLite polling and SSE queue management (Phase 2)
+    ├── image_resolver.py       # Wikipedia / Flickr image resolution with cache (Phase 2)
+    ├── requirements.txt        # Python dependencies (Phase 2)
+    ├── config.env.example      # Configuration template (Phase 2)
+    └── static/
+        └── placeholder.png     # Fallback image when no species photo is available
 ```
 
-- `ts`: Unix timestamp in milliseconds (for 5-minute window calculation)
-- `minuteKey`: `"HH:MM"` string (used to group detections into timeline batches)
-- `timeLabel`: human-readable time for the minute divider label
-- `image_url`: resolved by the server from BirdNET-Pi's configured image provider (Wikipedia or Flickr)
-- `audio_url`: path to the extracted audio clip; `null` if not available
+---
+
+## Dependencies
+
+**Server:**
+- Python 3.9+
+- Flask >= 2.3
+- requests >= 2.31
+- python-dotenv >= 1.0
+
+**Client:**
+- Vanilla HTML/CSS/JS — no framework
+- Google Fonts (Libre Baskerville, Nunito Sans) via CDN
+
+---
+
+## Development Status
+
+- [x] Architecture designed
+- [x] Display design finalized
+- [x] Phase 1: UI prototype complete (`client/index.html`)
+- [x] Phase 2: Python server
+- [ ] Phase 3: Integration & polish
 
 ---
 
@@ -112,10 +91,12 @@ Each detection event emitted by the server should be a JSON object with these fi
 - Mock SSE simulation (detections drip in on timers)
 - Auto light/dark theme
 
-### Phase 2 — Python Server (next)
-- Flask or FastAPI app running on the BirdNET-Pi
-- Watches BirdNET-Pi's SQLite DB for new rows in the `detections` table
-- Resolves `image_url` at detection time using BirdNET-Pi's configured image provider
+### Phase 2 — Python Server ✅ COMPLETE
+- Flask app running on the BirdNET-Pi
+- Polls BirdNET-Pi's SQLite DB every 15 seconds for new rows in the `detections` table
+- Tracks new rows by `rowid` for reliable change detection
+- Resolves `image_url` at detection time using BirdNET-Pi's configured image provider; results cached in memory per species
+- Falls back to `server/static/placeholder.png` when no image is available
 - Exposes:
   - `GET /api/detections/recent` — JSON array of recent detections (last N hours)
   - `GET /api/stream` — SSE stream; emits a `detection` event on each new row
@@ -132,21 +113,23 @@ src.addEventListener('detection', e => ingestDetection(JSON.parse(e.data)));
 Also replace the mock history load with a call to `/api/detections/recent` on page load to populate the timeline with past detections before the SSE stream begins.
 
 ### Phase 3 — Integration & Polish (future)
+- Wire `client/index.html` to the real server (replace mock simulation)
 - Rarity weighting for hero card: boost species with fewer total detections this week
 - Audio clip playback via the `audio_url` field
 - Species info enrichment (range, habitat) via an external API
 - Daily summary view
 - Configurable timeline depth (hours of history to load on page load)
+- **Image curation page**: a local browser UI for selecting and storing preferred species images, overriding the auto-resolved provider result regardless of source availability
 
 ---
 
 ## Configuration
 
-The server reads from `server/config.env`:
+Copy `server/config.env.example` to `server/config.env` and edit as needed.
 
 ```env
 # Path to BirdNET-Pi's SQLite database
-BIRDNETPI_DB=/home/pi/BirdNET-Pi/scripts/birds.db
+BIRDNETPI_DB=/home/pi/.local/share/birdnet-pi/birdnet.db
 
 # Port to run the signage server on
 PORT=5000
@@ -154,12 +137,59 @@ PORT=5000
 # How many hours of history to serve via /api/detections/recent
 TIMELINE_HOURS=4
 
+# How often (in seconds) the server polls the SQLite DB for new detections
+POLL_INTERVAL=15
+
 # Image provider: WIKIPEDIA or FLICKR
+# Leave empty to disable image resolution (placeholder will be shown)
 IMAGE_PROVIDER=WIKIPEDIA
 
 # Flickr API key (only needed if IMAGE_PROVIDER=FLICKR)
 FLICKR_API_KEY=
+
+# Flickr: restrict images to photos from this Flickr account email (optional)
+FLICKR_FILTER_EMAIL=
 ```
+
+---
+
+## Running the Server
+
+```bash
+cd server
+pip install -r requirements.txt
+cp config.env.example config.env
+# Edit config.env to set your DB path
+python server.py
+```
+
+Then open `http://localhost:5000` (or `http://birdnetpi.local:5000` from another device).
+
+---
+
+## API Reference
+
+### `GET /api/detections/recent`
+
+Returns a JSON array of detections from the last `TIMELINE_HOURS` hours, oldest first.
+
+### `GET /api/stream`
+
+SSE stream. Emits `detection` events as new rows appear in the database.
+
+Each detection object (from both endpoints) has this shape:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | int | SQLite `rowid` |
+| `timestamp` | int | Unix timestamp in milliseconds |
+| `minuteKey` | string | `"HH:MM"` — used to group detections into timeline batches |
+| `timeLabel` | string | Human-readable time, e.g. `"2:34 PM"` |
+| `com_name` | string | Common name |
+| `sci_name` | string | Scientific name |
+| `confidence` | float | Detection confidence (0.0–1.0) |
+| `image_url` | string | Resolved species image URL, or `/static/placeholder.png` |
+| `audio_url` | string\|null | Path to extracted audio clip; `null` if unavailable |
 
 ---
 
@@ -181,45 +211,6 @@ BirdNET-Pi stores detections in a SQLite database. The relevant table is `detect
 | `Sens` | Sigmoid sensitivity setting |
 | `Overlap` | Overlap setting |
 | `File_Name` | Path to the extracted audio clip |
-
----
-
-## Repository Structure
-
-```
-birdnet-signage/
-├── README.md
-├── client/
-│   └── index.html          # Complete display UI (Phase 1 done)
-└── server/
-    ├── server.py            # Flask/FastAPI app (Phase 2)
-    ├── db_watcher.py        # SQLite polling / change detection (Phase 2)
-    ├── requirements.txt     # (Phase 2)
-    └── config.env.example   # (Phase 2)
-```
-
----
-
-## Dependencies
-
-**Server (Phase 2):**
-- Python 3.9+
-- Flask or FastAPI
-- `watchdog` (optional, for file-based DB change detection)
-
-**Client:**
-- Vanilla HTML/CSS/JS — no framework
-- Google Fonts (Libre Baskerville, Nunito Sans) via CDN
-
----
-
-## Development Status
-
-- [x] Architecture designed
-- [x] Display design finalized
-- [x] Phase 1: UI prototype complete (`client/index.html`)
-- [ ] Phase 2: Python server
-- [ ] Phase 3: Integration & polish
 
 ---
 
