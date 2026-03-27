@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BirdNet Signage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,300;6..12,400;6..12,600;6..12,700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── THEME TOKENS ── */
+    :root {
+      --bg:              #f0f2ec;
+      --surface:         #ffffff;
+      --surface-var:     #e8ece4;
+      --outline:         #bcc4b6;
+      --outline-var:     #dde3d8;
+      --on-bg:           #1a1e18;
+      --on-surface:      #1a1e18;
+      --on-surface-var:  #42493f;
+      --primary:         #2d6a20;
+      --on-primary:      #ffffff;
+
+      --card-overlay: linear-gradient(
+        to top,
+        rgba(0,0,0,0.82) 0%,
+        rgba(0,0,0,0.55) 14%,
+        rgba(0,0,0,0.15) 22%,
+        transparent 30%
+      );
+
+      --font-display: 'Libre Baskerville', Georgia, serif;
+      --font-ui:      'Nunito Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:              #0f1410;
+        --surface:         #161b17;
+        --surface-var:     #1e241f;
+        --outline:         #868e83;
+        --outline-var:     #2e342f;
+        --on-bg:           #dde3d8;
+        --on-surface:      #dde3d8;
+        --on-surface-var:  #bcc4b6;
+        --primary:         #88cc68;
+        --on-primary:      #0a3300;
+      }
+    }
+
+    html, body {
+      height: 100%; background: var(--bg);
+      color: var(--on-bg); font-family: var(--font-ui); overflow: hidden;
+    }
+
+    /* ══ SHELL ══ */
+    #app { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+
+    /* ══════════════════════════════════════
+       HERO — fills its panel edge-to-edge
+    ══════════════════════════════════════ */
+    #hero-section {
+      flex: 1 1 0;
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #hero-img {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center 25%;
+      display: block;
+    }
+    #hero-img.reveal {
+      animation: heroReveal 0.9s cubic-bezier(0.05,0.7,0.1,1.0) both;
+    }
+    @keyframes heroReveal {
+      from { opacity: 0; transform: scale(1.06); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    #hero-overlay {
+      position: absolute; inset: 0;
+      background: var(--card-overlay);
+      pointer-events: none;
+    }
+
+    #hero-info {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 20px 24px 26px;
+      color: #fff;
+      animation: infoUp 0.5s 0.3s cubic-bezier(0.05,0.7,0.1,1.0) both;
+    }
+    @keyframes infoUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    #hero-common {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 4vw, 3.2rem);
+      font-weight: 700; line-height: 1.08;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.55);
+    }
+    #hero-sci {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: clamp(0.85rem, 1.6vw, 1.2rem);
+      color: rgba(255,255,255,0.78);
+      margin-top: 4px;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    #hero-meta {
+      display: flex; align-items: center; gap: 10px; margin-top: 12px;
+    }
+    .count-pill {
+      display: inline-flex; align-items: center;
+      background: var(--primary); color: var(--on-primary);
+      border-radius: 2rem; padding: 4px 13px;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em;
+    }
+    .audio-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,0.18);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 2rem; padding: 4px 13px 4px 9px;
+      color: rgba(255,255,255,0.95);
+      font-family: var(--font-ui); font-size: 0.67rem; font-weight: 600;
+      cursor: pointer; letter-spacing: 0.04em; transition: background 0.14s;
+    }
+    .audio-btn:hover { background: rgba(255,255,255,0.28); }
+    .audio-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+    /* empty hero */
+    #empty-hero {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      color: var(--outline);
+    }
+    #empty-hero svg { width: 48px; height: 48px; opacity: 0.3; }
+    #empty-hero p {
+      font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase;
+    }
+
+    /* pulse dot (used in hero) */
+    .pulse-dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      background: var(--primary); border-radius: 50%; position: relative;
+    }
+    .pulse-dot::after {
+      content: ''; position: absolute; inset: -3px; border-radius: 50%;
+      border: 1.5px solid var(--primary);
+      animation: pulse 2.4s ease-out infinite;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(1); opacity: 0.9; }
+      100% { transform: scale(2.8); opacity: 0; }
+    }
+
+    /* ══════════════════════════════════════
+       TIMELINE
+    ══════════════════════════════════════ */
+    #timeline-section {
+      width: 300px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      border-left: 1px solid var(--outline-var);
+      overflow: hidden;
+    }
+
+    /* Slim header — just species count + countdown */
+    #tl-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--outline-var);
+      flex-shrink: 0;
+    }
+    #species-summary {
+      font-size: 0.72rem; color: var(--on-surface-var);
+    }
+    #species-summary strong { color: var(--primary); font-weight: 700; }
+
+    #countdown-wrap { display: flex; align-items: center; gap: 5px; }
+    #countdown-ring { width: 16px; height: 16px; transform: rotate(-90deg); }
+    #countdown-ring circle { fill: none; stroke-width: 2.5; }
+    #ring-bg   { stroke: var(--outline-var); }
+    #ring-fill {
+      stroke: var(--primary); stroke-linecap: round;
+      stroke-dasharray: 38; stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear;
+    }
+    #next-update {
+      font-size: 0.6rem; color: var(--outline); letter-spacing: 0.04em;
+      font-family: var(--font-ui);
+    }
+
+    /* Scroll area — no padding, cards butt up against each other */
+    #timeline-scroll {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--outline-var) transparent;
+    }
+    #timeline-scroll::-webkit-scrollbar { width: 3px; }
+    #timeline-scroll::-webkit-scrollbar-thumb { background: var(--outline-var); }
+
+    /* Minute group */
+    .minute-group { display: flex; flex-direction: column; }
+    .minute-group.slide-in {
+      animation: groupIn 0.4s cubic-bezier(0.05,0.7,0.1,1.0) both;
+    }
+    @keyframes groupIn {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Time divider */
+    .minute-label {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 10px;
+      font-size: 0.58rem; font-weight: 700;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--outline);
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-var);
+      position: sticky; top: 0; z-index: 2;
+    }
+    .minute-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--outline-var);
+    }
+
+    /* Cards container — true square grid */
+    .minute-cards {
+      display: grid;
+      /* Each card = full width of panel, height = width → square */
+      grid-template-columns: 1fr;
+    }
+
+    /* ── TIMELINE PHOTO CARD ── */
+    .tl-card {
+      position: relative;
+      /* Enforce 1:1 aspect ratio */
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+      background: var(--surface-var);
+      cursor: pointer;
+      /* No border-radius — square corners */
+      border-bottom: 1px solid var(--outline-var);
+    }
+    .tl-card img {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center 25%;
+      display: block;
+    }
+    .tl-card .card-overlay {
+      position: absolute; inset: 0;
+      background: var(--card-overlay);
+      pointer-events: none;
+    }
+    .tl-card .card-info {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 10px 11px 12px; color: #fff;
+    }
+    .tl-card .tl-common {
+      font-family: var(--font-display);
+      font-size: 0.95rem; font-weight: 700; line-height: 1.15;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    }
+    .tl-card .tl-sci {
+      font-family: var(--font-display); font-style: italic;
+      font-size: 0.68rem; color: rgba(255,255,255,0.74);
+      margin-top: 2px; text-shadow: 0 1px 3px rgba(0,0,0,0.45);
+    }
+    .tl-card .tl-meta { margin-top: 6px; }
+    .tl-count {
+      display: inline-flex;
+      background: var(--primary); color: var(--on-primary);
+      border-radius: 2rem; padding: 2px 9px;
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em;
+    }
+
+    /* press ripple */
+    .tl-card::after {
+      content: ''; position: absolute; inset: 0;
+      background: rgba(255,255,255,0.15); opacity: 0;
+      transition: opacity 0.12s;
+    }
+    .tl-card:active::after { opacity: 1; }
+    .tl-card:hover img { transform: scale(1.03); transition: transform 0.4s ease; }
+
+    /* ══ PORTRAIT ══ */
+    @media (max-width: 680px), (orientation: portrait) {
+      #app { flex-direction: column; }
+      #hero-section { flex: 0 0 52vh; }
+      #timeline-section {
+        width: 100%; border-left: none;
+        border-top: 1px solid var(--outline-var); flex: 1;
+      }
+      /* In portrait, 2-column grid of square cards */
+      .minute-cards { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ HERO ══ -->
+  <div id="hero-section">
+    <div id="empty-hero">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+        <circle cx="12" cy="12" r="9"/>
+        <path stroke-linecap="round" d="M12 7v5l3.5 3.5"/>
+      </svg>
+      <p>Awaiting detections…</p>
+    </div>
+    <img id="hero-img" src="" alt="" style="display:none" />
+    <div id="hero-overlay" style="display:none"></div>
+    <div id="hero-info" style="display:none">
+      <div id="hero-common">—</div>
+      <div id="hero-sci">—</div>
+      <div id="hero-meta">
+        <span class="count-pill" id="hero-count"></span>
+        <button class="audio-btn" id="hero-audio" style="display:none">
+          <svg viewBox="0 0 16 16"><path d="M3 3.5v9l5-4.5-5-4.5zm6.5 1.8v5.4c1.2-.6 2-1.8 2-2.7s-.8-2.1-2-2.7z"/></svg>
+          Play clip
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TIMELINE ══ -->
+  <div id="timeline-section">
+    <div id="tl-header">
+      <div id="species-summary"><strong id="species-count">0</strong> species today</div>
+      <div id="countdown-wrap">
+        <svg id="countdown-ring" viewBox="0 0 16 16">
+          <circle id="ring-bg"   cx="8" cy="8" r="6"/>
+          <circle id="ring-fill" cx="8" cy="8" r="6"/>
+        </svg>
+        <span id="next-update">60s</span>
+      </div>
+    </div>
+    <div id="timeline-scroll"></div>
+  </div>
+
+</div>
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// MOCK DATA
+// Phase 2: replace runMockSimulation() with:
+//   const src = new EventSource('/api/stream');
+//   src.addEventListener('detection', e => ingestDetection(JSON.parse(e.data)));
+// ══════════════════════════════════════════════════════════════════════════════
+const BIRDS = [
+  { com_name:"American Robin",          sci_name:"Turdus migratorius",      image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Turdus-migratorius-002.jpg/1200px-Turdus-migratorius-002.jpg" },
+  { com_name:"Black-capped Chickadee",  sci_name:"Poecile atricapillus",    image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Poecile-atricapillus-001.jpg/1200px-Poecile-atricapillus-001.jpg" },
+  { com_name:"White-breasted Nuthatch", sci_name:"Sitta carolinensis",      image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Sitta_carolinensis_-USA-8.jpg/1200px-Sitta_carolinensis_-USA-8.jpg" },
+  { com_name:"Downy Woodpecker",        sci_name:"Dryobates pubescens",     image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Downy_Woodpecker.jpg/1200px-Downy_Woodpecker.jpg" },
+  { com_name:"Song Sparrow",            sci_name:"Melospiza melodia",       image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Song_sparrow_in_CP_%2841057%29.jpg/1200px-Song_sparrow_in_CP_%2841057%29.jpg" },
+  { com_name:"Northern Cardinal",       sci_name:"Cardinalis cardinalis",   image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Male_Northern_Cardinal_Broadside.jpg/1200px-Male_Northern_Cardinal_Broadside.jpg" },
+  { com_name:"House Finch",             sci_name:"Haemorhous mexicanus",    image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Haemorhous_mexicanus_-_male_-_01.jpg/1200px-Haemorhous_mexicanus_-_male_-_01.jpg" },
+  { com_name:"Tufted Titmouse",         sci_name:"Baeolophus bicolor",      image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Tufted_Titmouse-27527-2.jpg/1200px-Tufted_Titmouse-27527-2.jpg" },
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+const state = {
+  stream:        [],
+  minuteWindows: {},
+  minuteOrder:   [],
+  allSpecies:    new Set(),
+  secondsLeft:   60,
+  ticker:        null,
+  flushedKeys:   new Set(),
+};
+
+// ── DOM ────────────────────────────────────────────────────────────────────────
+const heroImg     = document.getElementById('hero-img');
+const heroOverlay = document.getElementById('hero-overlay');
+const heroInfo    = document.getElementById('hero-info');
+const heroCommon  = document.getElementById('hero-common');
+const heroSci     = document.getElementById('hero-sci');
+const heroCount   = document.getElementById('hero-count');
+const heroAudio   = document.getElementById('hero-audio');
+const emptyHero   = document.getElementById('empty-hero');
+const tlScroll    = document.getElementById('timeline-scroll');
+const specCount   = document.getElementById('species-count');
+const nextUpdate  = document.getElementById('next-update');
+const ringFill    = document.getElementById('ring-fill');
+const CIRCUMF     = 37.7; // 2π×6
+
+// ── INGEST ─────────────────────────────────────────────────────────────────────
+function ingestDetection(d) {
+  state.stream.push(d);
+  state.allSpecies.add(d.com_name);
+  specCount.textContent = state.allSpecies.size;
+
+  if (!state.minuteWindows[d.minuteKey]) {
+    state.minuteWindows[d.minuteKey] = { label: d.timeLabel, species: {} };
+    state.minuteOrder.push(d.minuteKey);
+  }
+  const win = state.minuteWindows[d.minuteKey];
+  if (!win.species[d.com_name]) win.species[d.com_name] = { bird: d, count: 0 };
+  win.species[d.com_name].count++;
+
+  updateHero();
+}
+
+// ── HERO — single card, top species by count in past 5 min ────────────────────
+function updateHero() {
+  const cutoff = Date.now() - 5 * 60 * 1000;
+  const counts = {};
+  for (const d of state.stream) {
+    if (d.ts >= cutoff) counts[d.com_name] = (counts[d.com_name] || 0) + 1;
+  }
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  if (!sorted.length) return;
+
+  const [topName, topCount] = sorted[0];
+  const bird = state.stream.slice().reverse().find(x => x.com_name === topName);
+
+  // Only re-render if species changed
+  if (heroImg.dataset.current === topName) {
+    // Just update count
+    heroCount.textContent = `${topCount}× in 5 min`;
+    return;
+  }
+
+  heroImg.dataset.current = topName;
+
+  // Show hero elements
+  emptyHero.style.display = 'none';
+  heroImg.style.display   = 'block';
+  heroOverlay.style.display = 'block';
+  heroInfo.style.display  = 'block';
+
+  // Swap image with animation
+  heroImg.classList.remove('reveal');
+  void heroImg.offsetWidth;
+  heroImg.src = bird.image_url;
+  heroImg.classList.add('reveal');
+
+  // Reset info animation
+  heroInfo.style.animation = 'none';
+  void heroInfo.offsetWidth;
+  heroInfo.style.animation = '';
+
+  heroCommon.textContent = bird.com_name;
+  heroSci.textContent    = bird.sci_name;
+  heroCount.textContent  = `${topCount}× in 5 min`;
+
+  if (bird.audio_url) {
+    heroAudio.style.display = 'inline-flex';
+    heroAudio.onclick = () => new Audio(bird.audio_url).play();
+  } else {
+    heroAudio.style.display = 'none';
+  }
+}
+
+// ── TIMELINE FLUSH ─────────────────────────────────────────────────────────────
+function flushMinuteToTimeline(key, animate) {
+  if (state.flushedKeys.has(key)) return;
+  const win = state.minuteWindows[key];
+  if (!win || !Object.keys(win.species).length) return;
+  state.flushedKeys.add(key);
+
+  const group = document.createElement('div');
+  group.className = 'minute-group' + (animate ? ' slide-in' : '');
+  group.id = `mg-${key}`;
+
+  // Time label
+  const label = document.createElement('div');
+  label.className = 'minute-label';
+  label.textContent = win.label;
+  group.appendChild(label);
+
+  // Cards grid
+  const grid = document.createElement('div');
+  grid.className = 'minute-cards';
+
+  Object.values(win.species)
+    .sort((a,b) => b.count - a.count)
+    .forEach(({bird, count}) => {
+      grid.appendChild(buildTlCard(bird, count));
+    });
+
+  group.appendChild(grid);
+  tlScroll.insertBefore(group, tlScroll.firstChild);
+}
+
+function buildTlCard(bird, count) {
+  const card = document.createElement('div');
+  card.className = 'tl-card';
+
+  const img = document.createElement('img');
+  img.src = bird.image_url;
+  img.alt = bird.com_name;
+  img.loading = 'lazy';
+
+  card.innerHTML = `
+    <div class="card-overlay"></div>
+    <div class="card-info">
+      <div class="tl-common">${bird.com_name}</div>
+      <div class="tl-sci">${bird.sci_name}</div>
+      <div class="tl-meta"><span class="tl-count">${count} detection${count>1?'s':''}</span></div>
+    </div>
+  `;
+  card.insertBefore(img, card.firstChild);
+  return card;
+}
+
+// ── COUNTDOWN ──────────────────────────────────────────────────────────────────
+function startCountdown() {
+  state.secondsLeft = 60;
+  tickRing();
+  state.ticker = setInterval(() => {
+    state.secondsLeft--;
+    tickRing();
+    if (state.secondsLeft <= 0) {
+      state.secondsLeft = 60;
+      const t = new Date(); t.setSeconds(0,0); t.setMinutes(t.getMinutes()-1);
+      flushMinuteToTimeline(`${pad(t.getHours())}:${pad(t.getMinutes())}`, true);
+    }
+  }, 1000);
+}
+
+function tickRing() {
+  const pct = state.secondsLeft / 60;
+  ringFill.style.strokeDashoffset = CIRCUMF * (1 - pct);
+  nextUpdate.textContent = `${state.secondsLeft}s`;
+}
+
+function pad(n) { return String(n).padStart(2,'0'); }
+
+// ── MOCK SIMULATION ────────────────────────────────────────────────────────────
+function makeD(bird, minsAgo, secsAgo) {
+  const t = new Date(Date.now() - minsAgo*60000 - secsAgo*1000);
+  const hh = pad(t.getHours()), mm = pad(t.getMinutes()), ss = pad(t.getSeconds());
+  const h12 = (t.getHours()%12)||12, ampm = t.getHours()>=12?'PM':'AM';
+  return { ...bird, ts: t.getTime(), time:`${hh}:${mm}:${ss}`,
+           minuteKey:`${hh}:${mm}`, timeLabel:`${h12}:${mm} ${ampm}`,
+           audio_url: null, id: Math.random() };
+}
+
+function runMockSimulation() {
+  const history = [
+    makeD(BIRDS[0],4,40), makeD(BIRDS[0],4,20), makeD(BIRDS[0],4,5),
+    makeD(BIRDS[1],3,50), makeD(BIRDS[2],3,30), makeD(BIRDS[1],3,10),
+    makeD(BIRDS[3],2,45), makeD(BIRDS[0],2,30), makeD(BIRDS[4],2,10),
+    makeD(BIRDS[5],1,50), makeD(BIRDS[5],1,35), makeD(BIRDS[1],1,15), makeD(BIRDS[0],1,5),
+  ];
+  history.forEach(d => ingestDetection(d));
+  [...new Set(history.map(d => d.minuteKey))].forEach(k => flushMinuteToTimeline(k, false));
+
+  const upcoming = [
+    {bird:BIRDS[6], delay:3500},
+    {bird:BIRDS[5], delay:8000},
+    {bird:BIRDS[0], delay:13000},
+    {bird:BIRDS[7], delay:19000},
+    {bird:BIRDS[0], delay:24000},
+    {bird:BIRDS[5], delay:29000},
+    {bird:BIRDS[1], delay:35000},
+    {bird:BIRDS[6], delay:41000},
+    {bird:BIRDS[0], delay:47000},
+  ];
+  upcoming.forEach(({bird, delay}) => {
+    setTimeout(() => ingestDetection(makeD(bird, 0, 0)), delay);
+  });
+
+  startCountdown();
+
+  // Flush current minute at 60s for demo
+  setTimeout(() => {
+    const t = new Date();
+    flushMinuteToTimeline(`${pad(t.getHours())}:${pad(t.getMinutes())}`, true);
+  }, 60000);
+}
+
+runMockSimulation();
+</script>
+</body>
+</html>
