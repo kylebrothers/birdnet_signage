@@ -24,9 +24,9 @@ from db_watcher import DBWatcher
 # Configuration
 # ---------------------------------------------------------------------------
 
-load_dotenv("config.env")
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.env"))
 
-DB_PATH = os.environ.get("BIRDNETPI_DB", "/home/pi/.local/share/birdnet-pi/birdnet.db")
+DB_PATH = os.environ.get("BIRDNETPI_DB", os.path.expanduser("~/BirdNET-Pi/scripts/birds.db"))
 PORT = int(os.environ.get("PORT", 5000))
 TIMELINE_HOURS = int(os.environ.get("TIMELINE_HOURS", 4))
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", 15))
