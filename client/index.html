@@ -239,19 +239,16 @@
     /* Cards container — true square grid */
     .minute-cards {
       display: grid;
-      /* Each card = full width of panel, height = width → square */
       grid-template-columns: 1fr;
     }
 
     /* ── TIMELINE PHOTO CARD ── */
     .tl-card {
       position: relative;
-      /* Enforce 1:1 aspect ratio */
       aspect-ratio: 1 / 1;
       overflow: hidden;
       background: var(--surface-var);
       cursor: pointer;
-      /* No border-radius — square corners */
       border-bottom: 1px solid var(--outline-var);
     }
     .tl-card img {
@@ -353,23 +350,6 @@
 
 </div>
 <script>
-// ══════════════════════════════════════════════════════════════════════════════
-// MOCK DATA
-// Phase 2: replace runMockSimulation() with:
-//   const src = new EventSource('/api/stream');
-//   src.addEventListener('detection', e => ingestDetection(JSON.parse(e.data)));
-// ══════════════════════════════════════════════════════════════════════════════
-const BIRDS = [
-  { com_name:"American Robin",          sci_name:"Turdus migratorius",      image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Turdus-migratorius-002.jpg/1200px-Turdus-migratorius-002.jpg" },
-  { com_name:"Black-capped Chickadee",  sci_name:"Poecile atricapillus",    image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Poecile-atricapillus-001.jpg/1200px-Poecile-atricapillus-001.jpg" },
-  { com_name:"White-breasted Nuthatch", sci_name:"Sitta carolinensis",      image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Sitta_carolinensis_-USA-8.jpg/1200px-Sitta_carolinensis_-USA-8.jpg" },
-  { com_name:"Downy Woodpecker",        sci_name:"Dryobates pubescens",     image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Downy_Woodpecker.jpg/1200px-Downy_Woodpecker.jpg" },
-  { com_name:"Song Sparrow",            sci_name:"Melospiza melodia",       image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Song_sparrow_in_CP_%2841057%29.jpg/1200px-Song_sparrow_in_CP_%2841057%29.jpg" },
-  { com_name:"Northern Cardinal",       sci_name:"Cardinalis cardinalis",   image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Male_Northern_Cardinal_Broadside.jpg/1200px-Male_Northern_Cardinal_Broadside.jpg" },
-  { com_name:"House Finch",             sci_name:"Haemorhous mexicanus",    image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Haemorhous_mexicanus_-_male_-_01.jpg/1200px-Haemorhous_mexicanus_-_male_-_01.jpg" },
-  { com_name:"Tufted Titmouse",         sci_name:"Baeolophus bicolor",      image_url:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Tufted_Titmouse-27527-2.jpg/1200px-Tufted_Titmouse-27527-2.jpg" },
-];
-
 // ── STATE ──────────────────────────────────────────────────────────────────────
 const state = {
   stream:        [],
@@ -398,6 +378,9 @@ const CIRCUMF     = 37.7; // 2π×6
 
 // ── INGEST ─────────────────────────────────────────────────────────────────────
 function ingestDetection(d) {
+  // Normalise: server sends timestamp in ms; attach as .ts for internal use
+  d.ts = d.timestamp;
+
   state.stream.push(d);
   state.allSpecies.add(d.com_name);
   specCount.textContent = state.allSpecies.size;
@@ -428,26 +411,22 @@ function updateHero() {
 
   // Only re-render if species changed
   if (heroImg.dataset.current === topName) {
-    // Just update count
     heroCount.textContent = `${topCount}× in 5 min`;
     return;
   }
 
   heroImg.dataset.current = topName;
 
-  // Show hero elements
-  emptyHero.style.display = 'none';
-  heroImg.style.display   = 'block';
+  emptyHero.style.display   = 'none';
+  heroImg.style.display     = 'block';
   heroOverlay.style.display = 'block';
-  heroInfo.style.display  = 'block';
+  heroInfo.style.display    = 'block';
 
-  // Swap image with animation
   heroImg.classList.remove('reveal');
   void heroImg.offsetWidth;
   heroImg.src = bird.image_url;
   heroImg.classList.add('reveal');
 
-  // Reset info animation
   heroInfo.style.animation = 'none';
   void heroInfo.offsetWidth;
   heroInfo.style.animation = '';
@@ -458,7 +437,7 @@ function updateHero() {
 
   if (bird.audio_url) {
     heroAudio.style.display = 'inline-flex';
-    heroAudio.onclick = () => new Audio(bird.audio_url).play();
+    heroAudio.onclick = () => new Audio(`/audio/${bird.audio_url}`).play();
   } else {
     heroAudio.style.display = 'none';
   }
@@ -475,13 +454,11 @@ function flushMinuteToTimeline(key, animate) {
   group.className = 'minute-group' + (animate ? ' slide-in' : '');
   group.id = `mg-${key}`;
 
-  // Time label
   const label = document.createElement('div');
   label.className = 'minute-label';
   label.textContent = win.label;
   group.appendChild(label);
 
-  // Cards grid
   const grid = document.createElement('div');
   grid.className = 'minute-cards';
 
@@ -539,51 +516,42 @@ function tickRing() {
 
 function pad(n) { return String(n).padStart(2,'0'); }
 
-// ── MOCK SIMULATION ────────────────────────────────────────────────────────────
-function makeD(bird, minsAgo, secsAgo) {
-  const t = new Date(Date.now() - minsAgo*60000 - secsAgo*1000);
-  const hh = pad(t.getHours()), mm = pad(t.getMinutes()), ss = pad(t.getSeconds());
-  const h12 = (t.getHours()%12)||12, ampm = t.getHours()>=12?'PM':'AM';
-  return { ...bird, ts: t.getTime(), time:`${hh}:${mm}:${ss}`,
-           minuteKey:`${hh}:${mm}`, timeLabel:`${h12}:${mm} ${ampm}`,
-           audio_url: null, id: Math.random() };
-}
+// ── CONSTANTS ──────────────────────────────────────────────────────────────────
+const MAX_TIMELINE_GROUPS = 15;
 
-function runMockSimulation() {
-  const history = [
-    makeD(BIRDS[0],4,40), makeD(BIRDS[0],4,20), makeD(BIRDS[0],4,5),
-    makeD(BIRDS[1],3,50), makeD(BIRDS[2],3,30), makeD(BIRDS[1],3,10),
-    makeD(BIRDS[3],2,45), makeD(BIRDS[0],2,30), makeD(BIRDS[4],2,10),
-    makeD(BIRDS[5],1,50), makeD(BIRDS[5],1,35), makeD(BIRDS[1],1,15), makeD(BIRDS[0],1,5),
-  ];
-  history.forEach(d => ingestDetection(d));
-  [...new Set(history.map(d => d.minuteKey))].forEach(k => flushMinuteToTimeline(k, false));
+// ── BOOT ───────────────────────────────────────────────────────────────────────
+async function boot() {
+  // 1. Load history from REST endpoint
+  try {
+    const resp = await fetch('/api/detections/recent');
+    if (resp.ok) {
+      const history = await resp.json();
+      history.forEach(d => ingestDetection(d));
+      // Flush only the most recent MAX_TIMELINE_GROUPS minute groups, no animation
+      const uniqueKeys = [...new Set(history.map(d => d.minuteKey))];
+      uniqueKeys.slice(-MAX_TIMELINE_GROUPS).forEach(k => flushMinuteToTimeline(k, false));
+    } else {
+      console.warn('Failed to load history:', resp.status);
+    }
+  } catch (err) {
+    console.warn('History fetch error:', err);
+  }
 
-  const upcoming = [
-    {bird:BIRDS[6], delay:3500},
-    {bird:BIRDS[5], delay:8000},
-    {bird:BIRDS[0], delay:13000},
-    {bird:BIRDS[7], delay:19000},
-    {bird:BIRDS[0], delay:24000},
-    {bird:BIRDS[5], delay:29000},
-    {bird:BIRDS[1], delay:35000},
-    {bird:BIRDS[6], delay:41000},
-    {bird:BIRDS[0], delay:47000},
-  ];
-  upcoming.forEach(({bird, delay}) => {
-    setTimeout(() => ingestDetection(makeD(bird, 0, 0)), delay);
-  });
-
+  // 2. Start countdown ring
   startCountdown();
 
-  // Flush current minute at 60s for demo
-  setTimeout(() => {
-    const t = new Date();
-    flushMinuteToTimeline(`${pad(t.getHours())}:${pad(t.getMinutes())}`, true);
-  }, 60000);
+  // 3. Connect SSE stream for live detections
+  const src = new EventSource('/api/stream');
+  src.addEventListener('detection', e => {
+    ingestDetection(JSON.parse(e.data));
+  });
+  src.onerror = () => {
+    // EventSource reconnects automatically; log quietly
+    console.warn('SSE connection lost, reconnecting…');
+  };
 }
 
-runMockSimulation();
+boot();
 </script>
 </body>
 </html>
