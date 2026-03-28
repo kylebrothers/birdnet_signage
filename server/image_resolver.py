@@ -34,6 +34,7 @@ def _wikipedia_image(sci_name: str) -> str | None:
         resp = requests.get(
             f"https://en.wikipedia.org/api/rest_v1/page/summary/{page_title}",
             timeout=8,
+            headers={"User-Agent": "birdnet-signage/1.0 (https://github.com/kylebrothers/birdnet-signage)"},
         )
         resp.raise_for_status()
         data = resp.json()
